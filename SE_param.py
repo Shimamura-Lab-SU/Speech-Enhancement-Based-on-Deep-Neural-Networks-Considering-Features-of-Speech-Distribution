@@ -37,4 +37,4 @@ class parameters:
 
         self.D_monitor_path = 'D_tmp.monitor'  # モニタ関連保存場所
         self.D_model_save_path = self.D_monitor_path  # パラメータ保存先
-        self.D_epoch=100
+        self.D_epoch=100                        #Dのエポックと合わせる
