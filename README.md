@@ -4,7 +4,7 @@
 
 # A_SpeechClassification.py
 
-音声からbetaを推定し，保存するプログラム
+音声からbetaを推定し，csvファイルで保存するプログラム
 
 音声を読み込み，  
 '../01 Data/SEGAN/clean_existence'  
@@ -17,21 +17,20 @@
 クリーンbetaとノイジーbetaの結合・補正・pkl化
 
 Aで保存したbetaが入ったcsvファイルを読み込み，  
-結合し，10以上の値の場合は10に補正する．  
-'pkl'にbeta_Trainning.pklを保存  
+結合・転置し，10以上の値の場合は10に補正する．  
+'pkl'にbeta_Training.pklを保存  
 
 # D_SpeechToBeta.py, D_STB_settings.py, D_data.py
 
 音声→betaになるように学習するプログラム
 
 [Training]
-※SE~を実行する前に学習が必要  
 'pkl'の中からspeech.pkl(音声+雑音,なければ作成)とbeta_Training.pkl(Bで作ったファイル)を読み込む  
 学習しパラメータを'D_tmp.monitor'に保存  
 
 # SE_withB.py, SE_data.py, SE_param.py
 
-音声強調部分
+音声強調
 
 'pkl'の中からclean.pkl,noisy.pkl(なければ作成)とDのパラメータを読み込む  
 Dのパラメータは更新せずに音声強調を行う
