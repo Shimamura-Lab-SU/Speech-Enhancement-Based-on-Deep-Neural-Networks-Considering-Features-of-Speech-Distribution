@@ -2,7 +2,7 @@
 
 この順で実行する必要あり
 
-# SpeechClassification.py
+# A_SpeechClassification.py
 
 音声からbetaを推定し，保存するプログラム
 
@@ -12,7 +12,7 @@
 に平均・標準偏差・betaのファイルを保存する  
 
 
-# data_beta.py
+# B_data_beta.py
 
 クリーンbetaとノイジーbetaの結合・補正・pkl化
 
