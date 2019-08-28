@@ -116,7 +116,6 @@ def Discriminator(speech):
         dis6 = af(n_conv(dis5, 64, name="dis6"))  
         dis7 = n_conv(dis6, 128, name="dis7")  
         f = PF.affine(dis7,1)  
-        #f=F.tanh(dis7)
 
     return f
 
