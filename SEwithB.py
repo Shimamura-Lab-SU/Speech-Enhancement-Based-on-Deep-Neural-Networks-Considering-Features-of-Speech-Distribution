@@ -58,24 +58,24 @@ def Autoencoder(Noisy):
     ## ---------------------------------
     with nn.parameter_scope("dae"):
         # Enc : Encoder in Generator
-        enc1    = af(conv(Noisy, 16, name="enc1"))   # Input:(16384, 1) --> (16, 8192) *convolutionの結果は自動的に(フィルタ数, 出力サイズ)にreshapeされる
-        enc2    = af(conv(enc1, 32, name="enc2"))    # (16, 8192) --> (32, 4096)
-        enc3    = af(conv(enc2, 32, name="enc3"))    # (32, 4096) --> (32, 2048)
-        enc4    = af(conv(enc3, 64, name="enc4"))    # (32, 2048) --> (64, 1024)
-        enc5    = af(conv(enc4, 64, name="enc5"))    # (64, 1024) --> (64, 512)
-        enc6    = af(conv(enc5, 128, name="enc6"))   # (64, 512) --> (128, 256)
-        enc7    = af(conv(enc6, 256, name="enc7"))   # (128, 256) --> (128, 128)
+        enc1    = af(conv(Noisy, 16, name="enc1"))   
+        enc2    = af(conv(enc1, 32, name="enc2"))    
+        enc3    = af(conv(enc2, 32, name="enc3"))   
+        enc4    = af(conv(enc3, 64, name="enc4"))    
+        enc5    = af(conv(enc4, 64, name="enc5"))  
+        enc6    = af(conv(enc5, 128, name="enc6"))  
+        enc7    = af(conv(enc6, 256, name="enc7")) 
 
 
 		# Dec : Decoder in Generator
         # Concatenate skip input for each layer
-        dec1    = concat(af(deconv(enc7, 128, name="dec1")), enc6) # (1024, 8) --> (512, 16) >> [concat](1024, 16)
-        dec2    = concat(af(deconv(dec1, 64, name="dec2")), enc5)   # (1024, 16) --> (256, 32)
-        dec3    = concat(af(deconv(dec2, 64, name="dec3")), enc4)   # (512, 32) --> (256, 64)
-        dec4    = concat(af(deconv(dec3, 32, name="dec4")), enc3)   # (512, 128) --> (128, 256)
-        dec5    = concat(af(deconv(dec4, 32, name="dec5")), enc2)   # (512, 128) --> (128, 256)
-        dec6    = concat(af(deconv(dec5, 16, name="dec6")), enc1)    # (512, 256) --> (64, 512)
-        dec7   = deconv(dec6, 1, name="dec11")                     # (32, 8192) --> (1, 16384)
+        dec1    = concat(af(deconv(enc7, 128, name="dec1")), enc6) 
+        dec2    = concat(af(deconv(dec1, 64, name="dec2")), enc5)   
+        dec3    = concat(af(deconv(dec2, 64, name="dec3")), enc4)   
+        dec4    = concat(af(deconv(dec3, 32, name="dec4")), enc3)   
+        dec5    = concat(af(deconv(dec4, 32, name="dec5")), enc2)  
+        dec6    = concat(af(deconv(dec5, 16, name="dec6")), enc1)   
+        dec7   = deconv(dec6, 1, name="dec11")                     
 
     return F.tanh(dec7)
 
@@ -108,14 +108,14 @@ def Discriminator(speech):
     #Input = F.concatenate(Noisy, Clean, axis=1)
     # Dis : Discriminator
     with nn.parameter_scope("stb"):
-        dis1 = af(n_conv(speech, 8, name="dis1"))  # Input:(2, 16384) --> (16, 16384)
-        dis2 = af(n_conv(dis1, 16, name="dis2"))  # (16, 16384) --> (32, 8192)
-        dis3 = af(n_conv(dis2, 16, name="dis3"))  # (32, 8192) --> (32, 4096)
-        dis4 = af(n_conv(dis3, 32, name="dis4"))  # (32, 4096) --> (64, 2048)
-        dis5 = af(n_conv(dis4, 32, name="dis5"))  # (64, 2048) --> (64, 1024)
-        dis6 = af(n_conv(dis5, 64, name="dis6"))  # (64, 1024) --> (128, 512)
-        dis7 = n_conv(dis6, 128, name="dis7")  # (512, 32) --> (1024, 16)
-        f = PF.affine(dis7,1)  # (1024, 16) --> (1,)
+        dis1 = af(n_conv(speech, 8, name="dis1"))  
+        dis2 = af(n_conv(dis1, 16, name="dis2")) 
+        dis3 = af(n_conv(dis2, 16, name="dis3"))  
+        dis4 = af(n_conv(dis3, 32, name="dis4"))  
+        dis5 = af(n_conv(dis4, 32, name="dis5"))  
+        dis6 = af(n_conv(dis5, 64, name="dis6"))  
+        dis7 = n_conv(dis6, 128, name="dis7")  
+        f = PF.affine(dis7,1)  
         #f=F.tanh(dis7)
 
     return f
