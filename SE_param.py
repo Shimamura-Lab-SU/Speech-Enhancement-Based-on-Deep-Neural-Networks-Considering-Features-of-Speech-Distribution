@@ -18,7 +18,7 @@ class parameters:
 
         # Train Condition
         self.retrain        = False              # 過去に学習したパラメータからの再開 or not
-        self.retrain = True  # 過去に学習したパラメータからの再開 or not
+        #self.retrain = True  # 過去に学習したパラメータからの再開 or not
         self.pre_epoch      = 20                 # 再開するエポック数
 
         # Retrain
