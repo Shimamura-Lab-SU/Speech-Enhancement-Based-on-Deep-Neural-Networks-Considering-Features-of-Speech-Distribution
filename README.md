@@ -26,12 +26,12 @@ Aで保存したbetaが入ったcsvファイルを読み込み，
 
 [Training]
 ※SE~を実行する前に学習が必要  
-pklの中からspeech.pkl(音声+雑音,なければ作成)とbeta_Training.pkl(Bで作ったファイル)を読み込む  
-学習しパラメータをD_tmp.monitorに保存  
+'pkl'の中からspeech.pkl(音声+雑音,なければ作成)とbeta_Training.pkl(Bで作ったファイル)を読み込む  
+学習しパラメータを'D_tmp.monitor'に保存  
 
 # SE_withB.py, SE_data.py, SE_param.py
 
 音声強調部分
 
-pklの中からclean.pkl,noisy.pkl(なければ作成)とDのパラメータを読み込む  
+'pkl'の中からclean.pkl,noisy.pkl(なければ作成)とDのパラメータを読み込む  
 Dのパラメータは更新せずに音声強調を行う
