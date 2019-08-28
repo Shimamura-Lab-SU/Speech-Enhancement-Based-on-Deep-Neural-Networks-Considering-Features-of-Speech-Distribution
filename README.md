@@ -1,4 +1,4 @@
-# SpeechEnhancementWithBeta
+# SpeechEnhancement with Generalized Gaussian Distribution Model
 
 # A_SpeechClassification.py
 
