@@ -49,9 +49,9 @@ for cname_ in cname:
 cdata = np.concatenate(cdata, axis=0)               # データのシリアライズ
 cdata = cdata - preemph * np.roll(cdata, 1)         # プリエンファシス
 cdata = cdata.astype(np.float32)                    # データ量圧縮(メモリに余裕があるなら消す)
-L = 256                                            # フレーム長の半分(1024サンプル)
-D = len(cdata) // L                                 # 0.0625s(1024サンプル)毎に分割
-cdata = cdata[:D * L].reshape(D, L)                 # (1,:) --> (528259,1024)
+L = 256                                            # フレーム長の半分(256サンプル)
+D = len(cdata) // L                                 # 0.015625s(256サンプル)毎に分割
+cdata = cdata[:D * L].reshape(D, L)                 # (1,:) --> (2113036,256)
 
 
 S=N*Shift
@@ -102,9 +102,9 @@ for nname_ in nname:
 ndata = np.concatenate(ndata, axis=0)               # データのシリアライズ
 ndata = ndata - preemph * np.roll(ndata, 1)         # プリエンファシス
 ndata = ndata.astype(np.float32)                    # データ量圧縮(メモリに余裕があるなら消す)
-L = 256                                            # フレーム長の半分(1024サンプル)
-D = len(ndata) // L                                 # 0.0625s(1024サンプル)毎に分割
-ndata = ndata[:D * L].reshape(D, L)  # (1,:) --> (528259, 1024)
+L = 256                                            # フレーム長の半分(256サンプル)
+D = len(ndata) // L                                 # 0.015625s(256サンプル)毎に分割
+ndata = ndata[:D * L].reshape(D, L)  # (1,:) --> (2113036, 256)
 
 
 
