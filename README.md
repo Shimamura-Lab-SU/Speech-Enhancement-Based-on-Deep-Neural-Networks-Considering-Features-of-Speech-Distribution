@@ -34,3 +34,10 @@ Aで保存したbetaが入ったcsvファイルを読み込み，
 
 'pkl'の中からclean.pkl,noisy.pkl(なければ作成)とDのパラメータを読み込む  
 Dのパラメータは更新せずに音声強調を行う
+
+
+# C_DAEusingFCN.py, C_data.py, C_param_for_DAE.py
+
+比較実験用  
+
+Generatorのみをもつ音声強調プログラム
