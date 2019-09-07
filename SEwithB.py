@@ -133,10 +133,10 @@ def Discriminator(speech):
 # -------------------------------------------
 #   Loss funcion
 # -------------------------------------------
-def Loss_reconstruction(wave_fake, wave_true, sum_in,sum_clean):
+def Loss_reconstruction(wave_fake, wave_true, beta_in,beta_clean):
    E_wave = F.mean( F.absolute_error(wave_fake, wave_true) )  	# 再構成性能の向上
-   B_wave = F.mean( F.absolute_error(sum_in, sum_clean) )
-   return E_wave+0.001*B_wave
+   B_wave = F.mean( F.absolute_error(beta_in, beta_clean) )
+   return E_wave+0.01*B_wave
 
 # -------------------------------------------
 #   Train processing
