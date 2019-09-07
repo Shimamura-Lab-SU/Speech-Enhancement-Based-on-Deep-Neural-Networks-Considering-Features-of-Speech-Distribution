@@ -165,15 +165,17 @@ def train(args):
     clean 		= nn.Variable([args.batch_size, 1, 16384])  # Desire
     dis_in     = nn.Variable([args.batch_size, 1, 256])
     dis_clean   = nn.Variable([args.batch_size, 1, 256])
-    sum_in = nn.Variable([args.batch_size, 1])
-    sum_clean = nn.Variable([args.batch_size, 1])
+    beta_in = nn.Variable([args.batch_size, 16384/256])
+    beta_clean = nn.Variable([args.batch_size, 16384/256])
+    beta_buf_in = np.empty((args.batch_size, 16384/256))
+    beta_buf_cl = np.empty((args.batch_size, 16384/256))
 
     # Network (DAE)
     aeout 	    = Autoencoder(noisy)                        # Predicted Clean
     output_t = Discriminator(dis_in)
     c_beta      = Discriminator(dis_clean)
 
-    loss_dae 	= Loss_reconstruction(aeout, clean, sum_in,sum_clean) # Loss function
+    loss_dae 	= Loss_reconstruction(aeout, clean, beta_in,beta_clean) # Loss function
 
 
 
@@ -248,6 +250,20 @@ def train(args):
             # Set input data
             clean.d, noisy.d = baches.next(j)               # Set input data
 
+            # Calculating beta from segmented signals
+            aeout.forward(clear_buffer=True)
+            for k in range(64):
+                dis_in.d=aeout.d[::,::,256*k:256*(k+1):]
+                dis_clean.d=clean.d[::,::,256*k:256*(k+1):]
+                output_t.forward()
+                beta_buf_in[:,k]=output_t.d
+                c_beta.forward()
+                beta_buf_cl[:,k]=c_beta.d
+
+            beta_in.d = beta_buf_in
+            beta_clean.d = beta_buf_cl
+
+
             # Updating
             solver_dae.zero_grad()                          # Clear the back-propagation result
             loss_dae.forward(clear_no_need_grad=True)       # Run the network
@@ -256,14 +272,6 @@ def train(args):
             solver_dae.weight_decay(args.weight_decay*8)    # Set weight-decay parameter
             solver_dae.update()                             # Update
 
-            aeout.forward(clear_buffer=True)
-            for k in range(64):
-                dis_in.d=aeout.d[::,::,256*k:256*(k+1):]
-                dis_clean.d=clean.d[::,::,256*k:256*(k+1):]
-                output_t.forward()
-                sum_in.d=sum_in.d+output_t.d
-                c_beta.forward()
-                sum_clean.d=sum_clean.d+c_beta.d
 
 
 
@@ -369,4 +377,3 @@ if __name__ == '__main__':
     # Test
     #test(args)
     #pesq_score('results/clean_SE.wav','results/output_SE.wav')
-
