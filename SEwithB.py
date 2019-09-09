@@ -165,10 +165,10 @@ def train(args):
     clean 		= nn.Variable([args.batch_size, 1, 16384])  # Desire
     dis_in     = nn.Variable([args.batch_size, 1, 256])
     dis_clean   = nn.Variable([args.batch_size, 1, 256])
-    beta_in = nn.Variable([args.batch_size, 16384/256])
-    beta_clean = nn.Variable([args.batch_size, 16384/256])
-    beta_buf_in = np.empty((args.batch_size, 16384/256))
-    beta_buf_cl = np.empty((args.batch_size, 16384/256))
+    beta_in = nn.Variable([args.batch_size,1, 16384/256])
+    beta_clean = nn.Variable([args.batch_size,1, 16384/256])
+    beta_buf_in = np.empty((args.batch_size,1, 64))
+    beta_buf_cl = np.empty((args.batch_size,1, 64))
 
     # Network (DAE)
     aeout 	    = Autoencoder(noisy)                        # Predicted Clean
@@ -256,9 +256,9 @@ def train(args):
                 dis_in.d=aeout.d[::,::,256*k:256*(k+1):]
                 dis_clean.d=clean.d[::,::,256*k:256*(k+1):]
                 output_t.forward()
-                beta_buf_in[:,k]=output_t.d
+                beta_buf_in[:,:,k]=output_t.d
                 c_beta.forward()
-                beta_buf_cl[:,k]=c_beta.d
+                beta_buf_cl[:,:,k]=c_beta.d
 
             beta_in.d = beta_buf_in
             beta_clean.d = beta_buf_cl
