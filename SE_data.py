@@ -78,7 +78,7 @@ def data_loader(preemph=0.95):
             print(' Load Noisy wav... #%d / %d' % (i, l))
             i += 1
 
-        ndata =    np.concatenate(cdata, axis=0)            # データのシリアライズ化
+        ndata =    np.concatenate(ndata, axis=0)            # データのシリアライズ化
         ndata = ndata - preemph * np.roll(ndata, 1)         # プリエンファシス
         ndata = ndata.astype(np.float32)                    # データ量圧縮(メモリに余裕があるなら消す)
         L = args.len//2                                             # フレーム長の半分(8192サンプル)
