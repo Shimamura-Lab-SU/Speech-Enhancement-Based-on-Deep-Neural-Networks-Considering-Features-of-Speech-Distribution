@@ -25,8 +25,8 @@ from scipy.io import wavfile
 from pypesq import pypesq
 
 # Original Functions
-from C_param_for_unet import settings
-import C_data_for_unet as dt
+from prop_param import settings
+import prop_data as dt
 
 
 # -------------------------------------------
