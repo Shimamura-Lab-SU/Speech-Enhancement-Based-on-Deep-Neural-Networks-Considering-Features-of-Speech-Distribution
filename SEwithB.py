@@ -1,15 +1,14 @@
-#
-#   Speech Enhancement based on Deep Auto-Encoder using Fully Convolutional Network
-#
-#
-
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
 
 from __future__ import absolute_import
 from six.moves import range
 
 import os
+import time
 import numpy as np
 
+# NNabla
 import nnabla as nn
 import nnabla.functions as F
 import nnabla.parametric_functions as PF
@@ -17,80 +16,207 @@ import nnabla.solvers as S
 import nnabla.initializer as I
 from nnabla.ext_utils import get_extension_context
 
-#   Figure 関連
-import matplotlib.pyplot as plt
+# Display
+import pyqtgraph as pg
+import pyqtgraph.exporters as pgex
 
-from SE_data import pesq_score
-from    SE_param import parameters
-import  SE_data as dt
+# Sound
+from scipy.io import wavfile
+from pypesq import pypesq
 
+# Original Functions
+from C_param_for_unet import settings
+import C_data_for_unet as dt
 
 
 # -------------------------------------------
-#   Generator ( Encoder + Decoder )
-#   - output estimated clean wav
+#   PESQ
 # -------------------------------------------
-def Autoencoder(Noisy):
-    """
-    Building generator network without random latent variables
-        Noisy : (Batch, 1, 16384)
-        Output : (Batch, 1, 16384)
-    """
+## Display progress in console
+def pesq_score(clean_wavs, reconst_wavs, band='wb'):
+    scores = []
 
-    ##  Sub-functions
+    print('PESQ Calculation...')
+    for i, (clean_, reconst_) in enumerate(zip(clean_wavs, reconst_wavs)):
+        rate, ref = wavfile.read(clean_)
+        rate, deg = wavfile.read(reconst_)
+        score = pypesq(rate, ref, deg, band)
+        scores.append(score)
+        print('Score : {0} ... {1}/{2}'.format(score, i, len(clean_wavs)))
+
+    score = np.average(np.array(scores))
+
+    print('  ---------------------------------------------------')
+    print('  Average PESQ score = {0}'.format(score))
+    print('  ---------------------------------------------------')
+
+    return 0
+
+
+## Display
+class display:
+    # Remaining Time Estimation
+    class time_estimation:
+
+        def __init__(self, epoch_from, epoch, batch_num):
+            self.start = time.time()
+            self.epoch = epoch
+            self.epoch_from = epoch_from
+            self.batch = batch_num
+            self.all = batch_num * (epoch - epoch_from)
+
+        def __call__(self, epoch_num, batch_num):
+            elapse = time.time() - self.start
+            amount = (batch_num + 1) + (epoch_num - self.epoch_from) * self.batch
+            remain = elapse / amount * (self.all - amount)
+
+            hours, mins = divmod(elapse, 3600)
+            mins, sec = divmod(mins, 60)
+            hours_e, mins_e = divmod(remain, 3600)
+            mins_e, sec_e = divmod(mins_e, 60)
+
+            elapse_time = [int(hours), int(mins), int(sec)]
+            remain_time = [int(hours_e), int(mins_e), int(sec_e)]
+
+            return elapse_time, remain_time
+
+    def __init__(self, epoch_from, epoch, batch_num):
+        self.tm = self.time_estimation(epoch_from, epoch, batch_num)
+        self.batch = batch_num
+
+    def __call__(self, epoch, trial, losses):
+        elapse_time, remain_time = self.tm(epoch, trial)
+        print('  ---------------------------------------------------')
+        print('  [ Epoch  # {0},    Trials  # {1}/{2} ]'.format(epoch + 1, trial + 1, self.batch))
+        print('    +  Mean Squared Loss        = {:.4f}'.format(losses))
+        print('    -------------------------')
+        print('    +  Elapsed Time            : {0[0]:3d}h {0[1]:02d}m {0[2]:02d}s'.format(elapse_time))
+        print('    +  Expected Remaining Time : {0[0]:3d}h {0[1]:02d}m {0[2]:02d}s'.format(remain_time))
+        print('  ---------------------------------------------------')
+
+
+## Create figure object and plot
+class figout:
+    def __init__(self):
+        ## Create Graphic Window
+        self.win = pg.GraphicsWindow(title="")
+        self.win.resize(800, 600)
+        self.win.setWindowTitle('pyqtgraph example: Plotting')
+        self.win.setBackground("#FFFFFFFF")
+        pg.setConfigOptions(antialias=True)  # Anti-Aliasing for clear plotting
+
+        ## Graph Layout
+        #   1st Col: Speech Waveform
+        self.p1 = self.win.addPlot(title="Source 1 Waveform")
+        self.p1.addLegend()
+        self.c11 = self.p1.plot(pen=(255, 0, 0, 255), name="In")
+        self.c12 = self.p1.plot(pen=(0, 255, 0, 150), name="Out1")
+        self.c13 = self.p1.plot(pen=(0, 0, 255, 90), name="Clean")
+        self.win.nextRow()
+        self.p2 = self.win.addPlot(title="Source 2 Waveform")
+        self.p2.addLegend()
+        self.c21 = self.p2.plot(pen=(255, 0, 0, 255), name="In")
+        self.c22 = self.p2.plot(pen=(0, 255, 0, 150), name="Out2")
+        self.c23 = self.p2.plot(pen=(0, 0, 255, 90), name="Clean")
+        self.win.nextRow()
+        #   2st Col-1: Loss
+        self.p3 = self.win.addPlot(title="Loss")
+        self.p3.addLegend()
+        self.c31 = self.p3.plot(pen=(255, 0, 0, 255), name="losses")
+        self.win.nextRow()
+
+    def waveform_1(self, noisy, target, clean, stride=10):
+        self.c11.setData(noisy[0:-1:stride])
+        self.c12.setData(target[0:-1:stride])
+        self.c13.setData(clean[0:-1:stride])
+
+    def waveform_2(self, noisy, target, clean, stride=10):
+        self.c21.setData(noisy[0:-1:stride])
+        self.c22.setData(target[0:-1:stride])
+        self.c23.setData(clean[0:-1:stride])
+
+    def loss(self, losses, stride=1, log_scale=True):
+        if log_scale:
+            self.p3.setLogMode(x=False, y=True)
+        self.c31.setData(losses[0:-1:stride])
+
+
+### -------------------------------------------
+###   Generator ( Encoder + Decoder )
+###   - output estimated clean wav
+### -------------------------------------------
+def Wave_U_Net(Noisy):
+    ds_outputs = list()
+    num_initial_filters = 24
+    num_layers = 12
+    filter_size = 15
+    merge_filter_size = 5
+    b = I.ConstantInitializer()
+    w = I.NormalInitializer(sigma=0.02)
+
+    ##     Sub-functions
     ## ---------------------------------
-    # Convolution
-    def conv(x, output_ch, karnel=(32,), pad=(15,), stride=(2,), name=None):
-        return PF.convolution(x, output_ch, karnel, pad=pad, stride=stride, name=name)
 
-    # deconvolution
-    def deconv(x, output_ch, karnel=(32,), pad=(15,), stride=(2,), name=None):
-        return PF.deconvolution(x, output_ch, karnel, pad=pad, stride=stride, name=name)
+    #   Convolution
+    def conv(x, output_ch, karnel=(15,), pad=(7,), stride=(1,), name=None):
+        return PF.convolution(x, output_ch, karnel, pad=pad, stride=stride, w_init=w, b_init=b, name=name)
 
-    # Activation Function
-    def af(x):
-        return PF.prelu(x)
+    #   Activation Function
+    def af(x, alpha=0.2):
+        return F.leaky_relu(x, alpha)
 
-    # Concatenate input and skip-input
-    def concat(x, h, axis=1):
-        return F.concatenate(x, h, axis=axis)
+    #
+    def crop_and_concat(x1, x2):
 
-    ##  Main Processing
-    ## ---------------------------------
-    with nn.parameter_scope("dae"):
-        # Enc : Encoder in Generator
-        enc1 = af(conv(Noisy, 16, name="enc1"))  # Input:(16384, 1) --> (16, 8192) *convolutionの結果は自動的に(フィルタ数, 出力サイズ)にreshapeされる
-        enc2 = af(conv(enc1, 32, name="enc2"))  # (16, 8192) --> (32, 4096)
-        enc3 = af(conv(enc2, 32, name="enc3"))  # (32, 4096) --> (32, 2048)
-        enc4 = af(conv(enc3, 64, name="enc4"))  # (32, 2048) --> (64, 1024)
-        enc5 = af(conv(enc4, 64, name="enc5"))  # (64, 1024) --> (64, 512)
-        enc6 = af(conv(enc5, 128, name="enc6"))  # (64, 512) --> (128, 256)
-        enc7 = af(conv(enc6, 128, name="enc7"))  # (128, 256) --> (128, 128)
-        enc8 = af(conv(enc7, 256, name="enc8"))  # (128, 128) --> (256, 64)
-        enc9 = af(conv(enc8, 256, name="enc9"))  # (256, 64) --> (256, 32)
-        enc10 = af(conv(enc9, 512, name="enc10"))  # (256, 32) --> (512, 16)
-        enc11 = af(conv(enc10, 1024, name="enc11"))  # (512, 16) --> (1024, 8)
+        def crop(tensor, target_times):
+            shape = tensor.shape[2]
+            diff = shape - target_times
+            if diff == 0:
+                return tensor
+            crop_start = diff // 2
+            crop_end = diff - crop_start
+            return F.slice(tensor, start=(0, 0, crop_start), stop=(tensor.shape[0], tensor.shape[1], shape - crop_end),
+                           step=(1, 1, 1))
 
-        # Dec : Decoder in Generator
-        # Concatenate skip input for each layer
-        dec1 = concat(af(deconv(enc11, 512, name="dec1")), enc10)  # (1024, 8) --> (512, 16) >> [concat](1024, 16)
-        dec2 = concat(af(deconv(dec1, 256, name="dec2")), enc9)  # (1024, 16) --> (256, 32)
-        dec3 = concat(af(deconv(dec2, 256, name="dec3")), enc8)  # (512, 32) --> (256, 64)
-        dec4 = concat(af(deconv(dec3, 128, name="dec4")), enc7)  # (512, 128) --> (128, 256)
-        dec5 = concat(af(deconv(dec4, 128, name="dec5")), enc6)  # (512, 128) --> (128, 256)
-        dec6 = concat(af(deconv(dec5, 64, name="dec6")), enc5)  # (512, 256) --> (64, 512)
-        dec7 = concat(af(deconv(dec6, 64, name="dec7")), enc4)  # (128, 512) --> (64, 1024)
-        dec8 = concat(af(deconv(dec7, 32, name="dec8")), enc3)  # (128, 1024) --> (32, 2048)
-        dec9 = concat(af(deconv(dec8, 32, name="dec9")), enc2)  # (64, 2048) --> (32, 4096)
-        dec10 = concat(af(deconv(dec9, 16, name="dec10")), enc1)  # (32, 4096) --> (16, 8192)
-        dec11 = deconv(dec10, 1, name="dec11")  # (32, 8192) --> (1, 16384)
+        x1 = crop(x1, x2.shape[2])
+        return F.concatenate(x1, x2, axis=1)
 
-    return F.tanh(dec11)
+    def downsampling_block(x, i):
+        with nn.parameter_scope(('ds_block-%2d' % i)):
+            ds = af(conv(x, (num_initial_filters + num_initial_filters * i), (filter_size,), (7,), name='conv'))
+            ds_slice = F.slice(ds, start=(0, 0, 0), stop=ds.shape, step=(1, 1, 2))  # Decimate by factor of 2
+            # ds_slice = F.average_pooling(ds, kernel=(1, 1,), stride=(1, 2,), pad=(0, 0,))
+            return ds, ds_slice
 
+    def upsampling_block(x, i):
 
-# -------------------------------------------
-#   Discriminator
-# -------------------------------------------
+        with nn.parameter_scope(('us_block-%2d' % i)):
+            up = F.unpooling(af(x), (2,))
+            cac_x = crop_and_concat(ds_outputs[-i - 1], up)
+            us = af(conv(cac_x, num_initial_filters + num_initial_filters * (num_layers - i - 1), (merge_filter_size,),
+                         (2,), name='conv'))
+            return us
+
+    with nn.parameter_scope('Wave-U-Net'):
+        current_layer = Noisy
+        ## downsampling block
+        for i in range(num_layers):
+            ds, current_layer = downsampling_block(current_layer, i)
+            ds_outputs.append(ds)
+        ## latent variable
+        with nn.parameter_scope('latent_variable'):
+            current_layer = af(conv(current_layer, num_initial_filters + num_initial_filters * num_layers))
+        ## upsampling block
+        for i in range(num_layers):
+            current_layer = upsampling_block(current_layer, i)
+
+        current_layer = crop_and_concat(Noisy, current_layer)
+
+        ## output layer
+        target_1 = F.tanh(conv(current_layer, 1, (1,), (0,), name='target_1'))
+        target_2 = F.tanh(conv(current_layer, 1, (1,), (0,), name='target_2'))
+        return target_1, target_2
+
 def Discriminator(speech):
     """
     Building discriminator network
@@ -129,251 +255,287 @@ def Discriminator(speech):
     return f
 
 
-
-# -------------------------------------------
-#   Loss funcion
-# -------------------------------------------
-def Loss_reconstruction(wave_fake, wave_true, beta_in,beta_clean):
-   E_wave = F.mean( F.absolute_error(wave_fake, wave_true) )  	# 再構成性能の向上
+def Loss_reconstruction(beta_in,beta_clean):
    B_wave = F.mean( F.absolute_error(beta_in, beta_clean) )
-   return E_wave+0.01*B_wave
+   return 0.001*B_wave
 
 # -------------------------------------------
 #   Train processing
 # -------------------------------------------
 def train(args):
+    ##  Sub-functions
+    ## ---------------------------------
+    ## Save Models
+    def save_models(epoch_num, losses):
 
+        # save generator parameter
+        with nn.parameter_scope('Wave-U-Net'):
+            nn.save_parameters(os.path.join(args.model_save_path, 'param_{:04}.h5'.format(epoch_num + 1)))
 
-    # *****************************************************
-    #       Settings
-    # *****************************************************
+        # save results
+        np.save(os.path.join(args.model_save_path, 'losses_{:04}.npy'.format(epoch_num + 1)), np.array(losses))
 
-    ##  Declarate Network
-    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    #       - Step 1. Define Variables
-    #           * noisy : container of batch of input values
-    #           * clean : container of batch of true values
-    #       - Step 2. Define Network
-    #           * aeout : output of Network using "Autoencoder"
-    #           * loss_dae : loss function
-    #       - Step 3. Define Solver
-    #           * solver_dae : Adam function
-    #       - Step 4. Define Solver
-    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    # Variables
-    noisy 		= nn.Variable([args.batch_size, 1, 16384])  # Input
-    clean 		= nn.Variable([args.batch_size, 1, 16384])  # Desire
-    dis_in     = nn.Variable([args.batch_size, 1, 256])
-    dis_clean   = nn.Variable([args.batch_size, 1, 256])
-    beta_in = nn.Variable([args.batch_size,1, 16384/256])
-    beta_clean = nn.Variable([args.batch_size,1, 16384/256])
-    beta_buf_in = np.empty((args.batch_size,1, 64))
-    beta_buf_cl = np.empty((args.batch_size,1, 64))
+    ## Load Models
+    def load_models(epoch_num, gen=True, dis=True):
 
-    # Network (DAE)
-    aeout 	    = Autoencoder(noisy)                        # Predicted Clean
+        # load generator parameter
+        with nn.parameter_scope('Wave-U-Net'):
+            nn.load_parameters(os.path.join(args.model_save_path, 'param_{:04}.h5'.format(args.epoch_from)))
+
+    ## Update parameters
+    class updating:
+
+        def __init__(self):
+            self.scale = 8 if args.halfprec else 1
+
+        def __call__(self, solver, loss):
+            solver.zero_grad()  # initialize
+            loss.forward(clear_no_need_grad=True)  # calculate forward
+            loss.backward(self.scale, clear_buffer=True)  # calculate backward
+            # solver.scale_grad(1. / self.scale)                # scaling
+            solver.update()  # update
+
+    ##  Inital Settings
+    ## ---------------------------------
+
+    ##  Create network
+    #   Clear
+    nn.clear_parameters()
+    #   Variables
+    noisy = nn.Variable([args.batch_size, 1, 16384], need_grad=False)  # Input
+    clean = nn.Variable([args.batch_size, 1, 16384], need_grad=False)  # Desire
+    dis_in = nn.Variable([args.batch_size, 1, 256])
+    dis_clean = nn.Variable([args.batch_size, 1, 256])
+    beta_in = nn.Variable([args.batch_size, 1, 16384 / 256])
+    beta_clean = nn.Variable([args.batch_size, 1, 16384 / 256])
+    beta_buf_in = np.empty((args.batch_size, 1, 64))
+    beta_buf_cl = np.empty((args.batch_size, 1, 64))
+
+    # Build Network
+    # K=2, C=1
+    target_1, target_2 = Wave_U_Net(noisy)
     output_t = Discriminator(dis_in)
-    c_beta      = Discriminator(dis_clean)
+    c_beta = Discriminator(dis_clean)
 
-    loss_dae 	= Loss_reconstruction(aeout, clean, beta_in,beta_clean) # Loss function
+    # Mean Squared Error
+    loss = (F.mean(F.squared_error(clean, target_1)) + F.mean(F.squared_error(noisy - clean, target_2))) / 2\
+           +Loss_reconstruction(beta_in,beta_clean)
 
+    # Optimizer: Adam
+    solver = S.Adam(args.learning_rate)
 
-
-    ##  Declarate Solver
-    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    #       - Step 1. Define Solver
-    #           * solver_dae : Adam solver (the argument is learning rate)
-    #       - Step 2. Set parameters to update
-    #           * nn.get_parameters() : parameters in scope "dae"
-    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    # Solver
-    solver_dae = S.Adam(args.learning_rate)                 # Adam
-    # Set parameter
-    with nn.parameter_scope("dae"):
-        solver_dae.set_parameters(nn.get_parameters())
-
+    # set parameter
+    with nn.parameter_scope('Wave-U-Net'):
+        solver.set_parameters(nn.get_parameters())
 
     ##  Load data & Create batch
-    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    #       - Step 1. Load all learning data using "data_loader"
-    #           * clean_data : clean wave data for learning
-    #           * noisy_data : noisy wave data for learning
-    #       - Step 2. Divide data into batch segment
-    #           * create_batch() makes batches including the set of (clean, noisy) from clean/noisy wave data.
-    #       - Step 3. Delete all data by "del"
-    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    clean_data, noisy_data  = dt.data_loader()              # loading all data as nunpy array
-    baches  = dt.create_batch(clean_data, noisy_data, args.batch_size)  # creating batch from data
+    clean_data, noisy_data = dt.data_loader()
+    batches = dt.create_batch(clean_data, noisy_data, args.batch_size)
     del clean_data, noisy_data
 
-    #nn.clear_parameters()
+    ##  Initial settings for sub-functions
+    fig = figout()
+    disp = display(args.epoch_from, args.epoch, batches.batch_num)
+    upd = updating()
+
+    ##  Train
+    ##----------------------------------------------------
+
     ##  Load parameters
     with nn.parameter_scope("stb"):
         nn.load_parameters(os.path.join(args.D_model_save_path, "STB_param_%06d.h5" % args.D_epoch))
 
-    ##  Reconstruct parameters
-    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    #       If "retrain" is true,
-    #           - load trained parameters from "DAE_param_%06d.h5"
-    #       Otherwise
-    #           - do nothing
-    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    if args.retrain:
-        # Reconstruct parameters
-        print(' Retrain parameter from past-trained network')
-        with nn.parameter_scope("dae"):
-            nn.load_parameters(os.path.join(args.model_save_path, "DAE_param_%06d.h5" % args.pre_epoch))
-        start_batch_num = args.pre_epoch        # batch num to start
-    else:
-        start_batch_num = 0                     # batch num to start
-
-    ##  Others
-    # only for plot
-    ax  = np.linspace(0, 1, 16384)      # create axis object
-    fig = plt.figure()                  # open fig object (only for plot)
-
-
-    # *****************************************************
-    #       Training
-    # *****************************************************
     print('== Start Training ==')
-    for i in range(start_batch_num, args.epoch):
 
-        print('--------------------------------')
-        print(' Epoch :: %d/%d' % (i + 1, args.epoch))
-        print('--------------------------------')
+    ##  Load "Pre-trained" parameters
+    if args.epoch_from > 0:
+        print(' Retrain parameter from pre-trained network')
+        load_models(args.epoch_from)
+        losses = np.load(os.path.join(args.model_save_path, 'losses_{:04}.npy'.format(args.epoch_from)))
+
+        ## Create loss loggers
+        point = args.epoch_from * ((batches.batch_num + 1) // 10)
+        loss_len = (args.epoch - args.epoch_from) * ((batches.batch_num + 1) // 10)
+        losses = np.append(losses, np.zeros(loss_len))
+    else:
+        losses = []
+        ## Create loss loggers
+        point = len(losses)
+        loss_len = (args.epoch - args.epoch_from) * ((batches.batch_num + 1) // 10)
+        losses = np.append(losses, np.zeros(loss_len))
+
+    ##  Training
+    for i in range(args.epoch_from, args.epoch):
+
+        print('')
+        print(' =========================================================')
+        print('  Epoch :: {0}/{1}'.format(i + 1, args.epoch))
+        print(' =========================================================')
+        print('')
 
         #  Batch iteration
-        for j in range(baches.batch_num):
-            print('  Train (Epoch.%d) - %d/%d' % (i+1, j+1, baches.batch_num))
+        for j in range(batches.batch_num):
+            print('  Train (Epoch. {0}) - {1}/{2}'.format(i + 1, j + 2, batches.batch_num))
 
-            # Set input data
-            clean.d, noisy.d = baches.next(j)               # Set input data
+            ##  Batch setting
+            clean.d, noisy.d = batches.next(j)
 
-            # Calculating beta from segmented signals
-            aeout.forward(clear_buffer=True)
+            ##  Updating
+            upd(solver, loss)  # update Generator
+
             for k in range(64):
-                dis_in.d=aeout.d[::,::,256*k:256*(k+1):]
-                dis_clean.d=clean.d[::,::,256*k:256*(k+1):]
+                dis_in.d = target_1.d[::, ::, 256 * k:256 * (k + 1):]
+                dis_clean.d = clean.d[::, ::, 256 * k:256 * (k + 1):]
                 output_t.forward()
-                beta_buf_in[:,:,k]=output_t.d
+                beta_buf_in[:, :, k] = output_t.d
                 c_beta.forward()
-                beta_buf_cl[:,:,k]=c_beta.d
+                beta_buf_cl[:, :, k] = c_beta.d
 
             beta_in.d = beta_buf_in
             beta_clean.d = beta_buf_cl
 
 
-            # Updating
-            solver_dae.zero_grad()                          # Clear the back-propagation result
-            loss_dae.forward(clear_no_need_grad=True)       # Run the network
-            loss_dae.backward(8, clear_buffer=True)         # Calculate the back-propagation result
-            solver_dae.scale_grad(1/8.)
-            solver_dae.weight_decay(args.weight_decay*8)    # Set weight-decay parameter
-            solver_dae.update()                             # Update
+            ##  Display
+            if (j) % 100 == 0:
+                # Get result for Display
+                target_1.forward(clear_no_need_grad=True)
+                target_2.forward(clear_no_need_grad=True)
 
 
 
+                # Display text
+                disp(i, j, loss.d)
 
-            # Display
-            if (j+1) % 50 == 0:
-                # Display
-                aeout.forward(clear_buffer =True)
-                print('  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~')
-                print('  Epoch #%d, %d/%d  Loss ::' % (i + 1, j + 1, baches.batch_num))
-                print('     Reconstruction Error = %.4f' % loss_dae.d)
-                print('  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~')
+                # Data logger
+                losses[point] = loss.d
+                point = point + 1
 
                 # Plot
-                plt.cla()                               # clear fig object
-                plt.plot(ax, aeout.d[0, 0, :])          # output waveform
-                plt.plot(ax, clean.d[0, 0, :], color='crimson') # clean waveform
-                plt.show(block=False)                   # update fig
-                plt.pause(0.0001)                       # pause for drawing
+                fig.waveform_1(noisy.d[0, 0, :], target_1.d[0, 0, :], clean.d[0, 0, :])
+                fig.waveform_2(noisy.d[0, 0, :], target_2.d[0, 0, :], clean.d[0, 0, :])
+                fig.loss(losses[0:point - 1])
+                pg.QtGui.QApplication.processEvents()
 
-        # Save parameters in scope "dae" for each batch
-        with nn.parameter_scope("dae"):
-            nn.save_parameters(os.path.join(args.model_save_path, "DAE_param_%06d.h5" % (i + 1)))
+        ## Save parameters
+        if ((i + 1) % args.model_save_cycle) == 0:
+            save_models(i, losses)  # save model
+            # fig.save(os.path.join(args.model_save_path, 'plot_{:04}.pdf'.format(i + 1))) # save fig
+            exporter = pg.exporters.ImageExporter(
+                fig.win.scene())  # exportersの直前に pg.QtGui.QApplication.processEvents() を呼ぶ！
+            exporter.export(os.path.join(args.model_save_path, 'plot_{:04}.png'.format(i + 1)))  # save fig
+
+    ## Save parameters (Last)
+    save_models(args.epoch - 1, losses)
+    exporter = pg.exporters.ImageExporter(fig.win.scene())  # exportersの直前に pg.QtGui.QApplication.processEvents() を呼ぶ！
+    exporter.export(os.path.join(args.model_save_path, 'plot_{:04}.png'.format(i + 1)))  # save fig
 
 
-    # *****************************************************
-    #       Save
-    # *****************************************************
-    ## Save parameters in scope "dae"
-    with nn.parameter_scope("dae"):
-        nn.save_parameters(os.path.join(args.model_save_path, "DAE_param_%06d.h5" % args.epoch))
-
-
+# -------------------------------------------
+#   Test processing
+# -------------------------------------------
 def test(args):
-    # *****************************************************
-    #       Settings
-    # *****************************************************
     ##  Load data & Create batch
-    clean_data, noisy_data = dt.data_loader()
-    baches_test = dt.create_batch_test(clean_data, noisy_data, start_time=0, stop_time=20)
-    del clean_data, noisy_data
+    clean_data, noisy_data, length_data = dt.data_loader(test=True, need_length=True)
+    print(clean_data.shape)
+    # Batch
+    #  - Proccessing speech interval can be adjusted by "start_frame" and "start_frame".
+    #  - "None" -> All speech in test dataset.
 
-    ##  Create network
-    # Variables
-    noisy_t     = nn.Variable(baches_test.noisy.shape)  # Input
-    output_t    = Autoencoder(noisy_t)                  # Network & Output
+    output_ts = []
+    bt_idx = 0
+    test_batch_size = args.batch_size
+    for i in range(clean_data.shape[0] // (test_batch_size * 2)):
+        print(i, "/", clean_data.shape[0] // (test_batch_size * 2))
+        batches_test = dt.create_batch_test(clean_data[bt_idx:bt_idx + test_batch_size * 2],
+                                            noisy_data[bt_idx:bt_idx + test_batch_size * 2], start_frame=0,
+                                            stop_frame=test_batch_size * 2)
 
-    ##  Load parameters
-    with nn.parameter_scope("dae"):
-        nn.load_parameters(os.path.join(args.model_save_path, "DAE_param_%06d.h5" % args.epoch))
+        ##  Create network
+        # Variables
+        noisy_t = nn.Variable(batches_test.noisy.shape)  # Input
+        # Network (Only Generator)
+        output_t, _ = Wave_U_Net(noisy_t)
+        ##  Load parameter
+        # load generator
+        with nn.parameter_scope('Wave-U-Net'):
+            nn.load_parameters(os.path.join(args.model_save_path, "param_{:04}.h5".format(args.epoch)))
+        ##  Validation
+        noisy_t.d = batches_test.noisy
+        output_t.forward()
 
-    ##  Validation
-    noisy_t.d = baches_test.noisy
+        ##  Create wav files
+        output = output_t.d.flatten()
+        output_ts.append(output)
+        bt_idx += (test_batch_size * 2)
 
-    # *****************************************************
-    #       Test
-    # *****************************************************
-    ##  Run (if you wanna run the network, use ".forward()")
-    output_t.forward()
+    if (clean_data.shape[0] % (test_batch_size * 2)) != 0:
+        last_batch_size_2 = clean_data.shape[0] % (test_batch_size * 2)
+        print(last_batch_size_2)
+        batches_test = dt.create_batch_test(clean_data[bt_idx:bt_idx + last_batch_size_2],
+                                            noisy_data[bt_idx:bt_idx + last_batch_size_2], start_frame=0,
+                                            stop_frame=last_batch_size_2)
 
-    # *****************************************************
-    #       Save as wavefile
-    # *****************************************************
-    ##  Create wav files
-    clean = baches_test.clean.flatten()
-    output = output_t.d.flatten()
-    dt.wav_write('results/clean_SE.wav', baches_test.clean.flatten(), fs=16000)
-    dt.wav_write('results/input_SE.wav', baches_test.noisy.flatten(), fs=16000)
-    dt.wav_write('results/output_SE.wav', output_t.d.flatten(), fs=16000)
+        ##  Create network
+        # Variables
+        noisy_t = nn.Variable(batches_test.noisy.shape)  # Input
+        # Network (Only Generator)
+        ##  Load parameter
+        output_t, _ = Wave_U_Net(noisy_t)
+        # load generator
+        with nn.parameter_scope('Wave-U-Net'):
+            nn.load_parameters(os.path.join(args.model_save_path, "param_{:04}.h5".format(args.epoch)))
+        ##  Validation
+        noisy_t.d = batches_test.noisy
+        output_t.forward()
 
-    # *****************************************************
-    #       Plot
-    # *****************************************************
-    ##  Plot
-    fig = plt.figure()                      # create fig object
-    plt.clf()                               # clear fig object
-    ax = np.linspace(0, 1, len(output))     # axis
-    plt.plot(ax, output)                    # output waveform
-    plt.plot(ax, clean, color='crimson')    # clean waveform
-    plt.savefig(os.path.join(args.model_save_path, "figs/test_%06d.png" % args.epoch))# save fig to png
+        ##  Create wav files
+        output = output_t.d.flatten()
+        output_ts.append(output)
+        bt_idx += (last_batch_size_2)
 
+    output = output_ts[0]
+    for i in range(1, len(output_ts)):
+        output = np.concatenate([output, output_ts[i]], axis=0)
+    print(len(output))
+    output = np.array(output)
+    print(output.shape)
+    idx_cnt = 0
+    for i in range(len(length_data['name'])):
+        print("saving", i, length_data['name'][i], "...")
+        outwav = output[idx_cnt:idx_cnt + length_data['length'][i]]
+        print(outwav.shape)
+        idx_cnt += length_data['length'][i]
+        print(idx_cnt)
+        dt.wav_write((args.wav_save_path + '/' + 'ests_' + os.path.basename(length_data['name'][i])), np.array(outwav),
+                     fs=16000)
+    print('finish!')
 
 
 if __name__ == '__main__':
 
-    # GPU connection
-    ctx = get_extension_context('cudnn', device_id=0, type_config='half')
-    nn.set_default_context(ctx)
+    ## Load settings
+    args = settings()
 
-    # Load parameters
-    args = parameters()
+    ## GPU connection
+    if args.halfprec:
+        # - Float 16-bit precision mode : When GPU memory often gets stack, please use it.
+        ctx = get_extension_context('cudnn', device_id=args.device_id, type_config='half')
+    else:
+        # - Float 32-bit precision mode :
+        ctx = get_extension_context('cudnn', device_id=args.device_id)
 
-    # Training
-    #   1. Pre-train for only generator
-    #       -- if "pretrain"
-    #           - if "retrain"     -> load trained-generator & restart pre-train
-    #           - else             -> initialize generator & start pre-train
-    #       -- else                -> nothing
-    #   2. Train
-    #       -- if "retrain"        -> load trianed-generator and trained-discriminator & restart train
-    #       -- else                -> start train (* normal case)
-    train(args)
+    ## Training or Prediction
+    Train = 0               #Train:1 Test:0
+    if Train:
+        # Training
+        nn.set_default_context(ctx)
+        train(args)
+    else:
+        # Test
+        test(args)
+        import glob
 
-    # Test
-    #test(args)
-    #pesq_score('results/clean_SE.wav','results/output_SE.wav')
+        clean_wavs = glob.glob(args.clean_test_path + '/*.wav')
+        #reconst_wavs = glob.glob('results' + '/*.wav')
+        reconst_wavs = glob.glob('results_review/20200107/results/female' + '/*.wav')
+        pesq_score(clean_wavs, reconst_wavs)
