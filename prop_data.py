@@ -11,7 +11,7 @@ import numpy as np
 import numpy.random as rd
 from scipy.signal import lfilter
 
-from C_param_for_unet import settings
+from prop_param import settings
 
 import os
 
