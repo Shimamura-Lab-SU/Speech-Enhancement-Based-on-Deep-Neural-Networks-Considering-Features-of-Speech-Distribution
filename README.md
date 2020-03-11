@@ -1,15 +1,16 @@
-# SpeechEnhancement with Generalized Gaussian Distribution Model
+# Speech Enhancement with Generalized Gaussian Distribution Model
 
 この順で実行する必要あり
 
 # A_SpeechClassification.py
 
-音声からbetaを推定し，csvファイルで保存するプログラム
+音声からbetaを推定し(最尤推定)，csvファイルで保存するプログラム
 
 音声を読み込み，  
 '../01 Data/SEGAN/clean_existence'  
 '../01 Data/SEGAN/noisy_existence/'  
-に平均・標準偏差・betaのファイルを保存する  
+に平均・標準偏差・betaのファイルを保存する
+(平均・標準偏差は使わないので省略してOK)
 
 
 # B_data_beta.py
