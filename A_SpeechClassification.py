@@ -1,5 +1,4 @@
 #音声にラベルを付ける
-#speech(noisy)_parameter.csvは音声(雑音)データ(学習には使わない、現在コメントアウト中)
 #speech(noisy)_para_mean.csvは音声(雑音)の平均
 #speech(noisy)_sd_mean.csvは音声(雑音)の標準偏差
 #speech(noisy)_para_beta.csvは近似的に求めたbeta(必ずしも真値ではない)
@@ -65,14 +64,11 @@ while n<D:
     n=n+1
 
 #csvで保存
-# with open(os.path.join(speech_para,'speech_parameter.csv'),'w')as f:
-#     writer=csv.writer(f,lineterminator='\n')
-#     writer.writerow(cdata)
-
+#クリーン音声の平均
 with open(os.path.join(speech_para,'speech_para_mean.csv'),'w')as f:
     writer=csv.writer(f,lineterminator='\n')
     writer.writerow(cmean)
-
+#クリーン音声の標準偏差
 with open(os.path.join(speech_para, 'speech_para_sd.csv'), 'w')as f:
     writer = csv.writer(f, lineterminator='\n')
     writer.writerow(csd)
@@ -83,7 +79,7 @@ while n<D:
     #para[n]=gennorm.fit(cdata[n])
     cbeta[n],loc,scale=gennorm.fit(cdata[n],floc=0)
     n=n+1
-
+#クリーン音声のbeta
 with open(os.path.join(speech_para, 'speech_para_beta.csv'), 'w')as f:
     writer = csv.writer(f, lineterminator='\n')
     writer.writerow(cbeta)
@@ -119,14 +115,11 @@ while n < D:
     n = n + 1
 
 # csvで保存
-# with open(os.path.join(noisy_para, 'noisy_parameter.csv'), 'w')as f:
-#     writer = csv.writer(f, lineterminator='\n')
-#     writer.writerow(ndata)
-
+#雑音混入音声の平均
 with open(os.path.join(noisy_para, 'noisy_para_mean.csv'), 'w')as f:
     writer = csv.writer(f, lineterminator='\n')
     writer.writerow(nmean)
-
+#雑音混入音声の標準偏差
 with open(os.path.join(noisy_para, 'noisy_para_sd.csv'), 'w')as f:
     writer = csv.writer(f, lineterminator='\n')
     writer.writerow(nsd)
@@ -137,7 +130,7 @@ nbeta = [0] * D
 while n < D:
     nbeta[n],loc,scale = gennorm.fit(ndata[n],floc=0)
     n = n + 1
-
+#雑音混入音声のbeta
 with open(os.path.join(noisy_para, 'noisy_para_beta.csv'), 'w')as f:
     writer = csv.writer(f, lineterminator='\n')
     writer.writerow(nbeta)
