@@ -257,7 +257,7 @@ def Discriminator(speech):
 
 def Loss_reconstruction(beta_in,beta_clean):
    B_wave = F.mean( F.absolute_error(beta_in, beta_clean) )
-   return 0.001*B_wave
+   return 0.001*B_wave                                          #係数が分布推定ネットワークの重みになる
 
 # -------------------------------------------
 #   Train processing
