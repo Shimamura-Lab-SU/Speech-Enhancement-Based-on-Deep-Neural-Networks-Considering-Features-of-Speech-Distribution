@@ -29,7 +29,7 @@ Aで保存したbetaが入ったcsvファイルを読み込み，
 'pkl'の中からspeech.pkl(音声+雑音,なければ作成)とbeta_Training.pkl(Bで作ったファイル)を読み込む  
 学習しパラメータを'D_tmp.monitor'に保存  
 
-# SE_withB.py, SE_data.py, SE_param.py
+# prop.py, prop_param.py, prop_data.py
 
 音声強調
 
