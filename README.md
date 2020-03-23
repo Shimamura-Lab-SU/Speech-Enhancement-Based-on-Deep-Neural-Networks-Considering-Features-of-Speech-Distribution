@@ -25,16 +25,17 @@ Aで保存したbetaが入ったcsvファイルを読み込み，
 
 音声→betaになるように学習するプログラム
 
-[Training]
 'pkl'の中からspeech.pkl(音声+雑音,なければ作成)とbeta_Training.pkl(Bで作ったファイル)を読み込む  
-学習しパラメータを'D_tmp.monitor'に保存  
+学習しパラメータを'D_tmp.monitor'に保存
+出力は行わず，学習のみを行う
 
 # prop.py, prop_param.py, prop_data.py
 
-音声強調
+Wave-U-Netをもとにした音声強調を行う
 
-'pkl'の中からclean.pkl,noisy.pkl(なければ作成)とDのパラメータを読み込む  
+'pkl'の中からclean.pkl,noisy.pkl(なければ作成)とDのパラメータを'D_tmp.monitor'から読み込む  
 Dのパラメータは更新せずに音声強調を行う
+出力音声は'results'の中に保存される
 
 
 
