@@ -22,7 +22,7 @@ import pyqtgraph.exporters as pgex
 
 # Sound
 from scipy.io import wavfile
-from pypesq import pypesq
+from pesq import pesq
 
 # Original Functions
 from prop_param import settings
@@ -40,7 +40,7 @@ def pesq_score(clean_wavs, reconst_wavs, band='wb'):
     for i, (clean_, reconst_) in enumerate(zip(clean_wavs, reconst_wavs)):
         rate, ref = wavfile.read(clean_)
         rate, deg = wavfile.read(reconst_)
-        score = pypesq(rate, ref, deg, band)
+        score = pesq(rate, ref, deg, band)
         scores.append(score)
         print('Score : {0} ... {1}/{2}'.format(score, i, len(clean_wavs)))
 
