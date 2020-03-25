@@ -1,5 +1,30 @@
 # Speech Enhancement with Generalized Gaussian Distribution Model
 
+##  Requrement
+
+### Python
+
+  - Python 3.6
+  - CUDA 10.1 & CuDNN 7.6
+    + Please choose the appropriate CUDA and CuDNN version to match your [NNabla version](https://github.com/sony/nnabla/releases) 
+
+### Packages
+
+Please install the following packages with pip.
+(If necessary, install latest pip first.)
+
+  - nnabla  (over v1.1)
+  - nnabla-ext-cuda  (over v1.1)
+  - scipy 
+  - numba  
+  - joblib  
+  - pyQT5  
+  - pyqtgraph  (after installing pyQT5)
+  - pypesq (see ["install with pip"](https://github.com/ludlows/python-pesq#install-with-pip) in offical site)
+  
+  
+# Program
+
 この順で実行する必要あり
 
 # A_SpeechClassification.py
